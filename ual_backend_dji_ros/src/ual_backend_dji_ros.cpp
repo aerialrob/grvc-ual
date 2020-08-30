@@ -771,33 +771,15 @@ double getNextHeight_lineal(double z0, float it, double a, double b) {
 
 void BackendDjiRos::land() {
     
+    faster_mode_.mode = faster_mode_.ON_GROUND;
+    faster_mode_.header.stamp = ros::Time::now();
+    my_publisher_faster_mode_.publish(faster_mode_);
+    ROS_INFO_ONCE("[Mission] fater disabled");
+
+
 
     dji_sdk::DroneTaskControl drone_task_control;
-    // drone_task_control.request.task = dji_sdk::DroneTaskControl::Request::TASK_LAND;
-    // drone_task_control_client_.call(drone_task_control);
-   
-    // if(!drone_task_control.response.result) {
-    //     ROS_ERROR("Land fail");
-    // }
-    // else if(drone_task_control.response.result) {
-    // ROS_INFO("Landing...");
-    // }
 
-    // while (flight_status_.data != DJISDK::FlightStatus::STATUS_STOPPED) {
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    // }
-    // ROS_INFO("Landed!");
-    
-
-    // control_mode_ = eControlMode::LOCAL_POSE;    // Control in position
-    // reference_pose_.pose.position.x = current_position_.point.x;
-    // reference_pose_.pose.position.y = current_position_.point.y;
-    // reference_pose_.pose.position.z = 0.02;
-
-    // q.x = current_attitude_.quaternion.x;
-    // q.y = current_attitude_.quaternion.y;
-    // q.z = current_attitude_.quaternion.z;
-    // q.w = current_attitude_.quaternion.w;
 
     ROS_INFO("[UAL] Landing...");
     calling_land = true;     
@@ -806,7 +788,13 @@ void BackendDjiRos::land() {
     // while (current_position_.point.z > 1.0) {
     //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // }
-    double freq = 50, a = 0.1, b = 0.05;
+
+
+        //exp
+    // double freq = 50, a = 0.9, b = 0.3;
+    //lineal
+    double freq = 10, a = 0.7, b = 0.3;
+
     float ros_it = 0;
     bool end = false;
 
@@ -815,31 +803,38 @@ void BackendDjiRos::land() {
     // Send to starting landing point (1mt)
     next_wp.pose.position.x = current_position_.point.x;
     next_wp.pose.position.y = current_position_.point.y;
-    next_wp.pose.position.z = 1;
-    setPose(next_wp);    //Set pose to controller
+    next_wp.pose.position.z = current_position_.point.z;
+    // setPose(next_wp);    //Set pose to controller
 
-    des_land_z.pose.position.z = 0.02;
+    des_land_z.pose.position.z = 0;
     
     ros::Rate rate(freq);
 
+    z0_land = current_position_.point.z;
+
     // Landing abortable!
     while (!abort_ && ros::ok()) {
-        auto start = std::chrono::high_resolution_clock::now();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> elapsed = end-start;
+        // auto start = std::chrono::high_resolution_clock::now();
+        // std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // auto end = std::chrono::high_resolution_clock::now();
+        // std::chrono::duration<double, std::milli> elapsed = end-start;
         // std::cout << "Waited " << elapsed.count() << " ms\n";
         // Get next heigth descending from 1mtr
-        next_wp.pose.position.z = getNextHeight(freq, ros_it, a, b);
+        // next_wp.pose.position.z = getNextHeight(freq, ros_it, a, b);
+        next_wp.pose.position.z = getNextHeight_lineal(z0_land, ros_it, a_land, b_land);
+        ROS_INFO_STREAM("z = " <<  next_wp.pose.position.z);
         setPose(next_wp);   //Set pose to controller
 
-        if ((fabs(des_land_z.pose.position.z - current_position_.point.z) < position_th_)) {            
+        
+        if ((fabs(des_land_z.pose.position.z - current_position_.point.z) < 0.5*position_th_)) {            
             break;  // Out-of-while condition
+
         }
            
-        ++ros_it;        
-        // rate.sleep();
-        ros::spinOnce();
+        ros_it = ros_it+0.01;   
+        ROS_INFO_STREAM("ros_it = " <<  ros_it);     
+        rate.sleep();
+        // ros::spinOnce();
     }
 
     //     while(!referencePoseReached() && !abort_ && ros::ok()) {
