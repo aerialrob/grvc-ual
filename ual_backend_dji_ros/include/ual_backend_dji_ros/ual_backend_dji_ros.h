@@ -37,6 +37,7 @@
 #include <geometry_msgs/QuaternionStamped.h>
 #include <std_msgs/UInt8.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Bool.h>
 #include <sensor_msgs/Joy.h>
 
 #include <dji_sdk/dji_sdk.h>
@@ -50,11 +51,21 @@
 #include <dji_sdk/MissionWpSetSpeed.h>
 #include <dji_sdk/MissionWpAction.h>
 
+#include <mav_planning_msgs/PlannerService.h>
+#include <mav_msgs/eigen_mav_msgs.h>
+#include <mav_msgs/conversions.h>
+
+#include <visualization_msgs/MarkerArray.h>
+
+
+#include <faster_msgs/Mode.h>
+#include <snapstack_msgs/QuadGoal.h>
+#include <snapstack_msgs/State.h>
 
 // std_msgs::UInt8 S_FLYING = 2;
 typedef double Quaterniond [4];
 
-
+typedef faster_msgs::Mode               FasterMode; 
 
 namespace grvc { namespace ual {
 
@@ -147,6 +158,21 @@ public:
     /// Current reference pose
     virtual Pose referencePose() override;
 
+
+    // Latest WaypointList from GlobalPlanner  (NEW)
+    virtual WaypointList waypoint_list() const override;
+
+    // Give each WP in a list from planner  (NEW)
+    /// Set pose
+    /// \param _pose target pose
+    void    setPosePlanner(const geometry_msgs::PoseStamped& _pose) override;    
+
+    // Marker new WP ro RVIZ  (NEW)
+    void publishWPForRviz(const Waypoint& wpsToPaint, int type);
+    
+    /// Flag reference reached  (NEW)
+    virtual std_msgs::Bool referenceReached() override;
+
     /// Set pose
     /// \param _pose target pose
     void    setPose(const geometry_msgs::PoseStamped& _pose) override;
@@ -155,9 +181,17 @@ public:
     /// \param _wp goal waypoint
     void	goToWaypoint(const Waypoint& _wp) override;
 
+    /// Go to the specified waypoint using local planner
+    /// \param _wp goal waypoint
+    void    goToWaypoint_controller(const Waypoint& _wp) override;
+
     /// Go to the specified waypoint in geographic coordinates, following a straight line
     /// \param _wp goal waypoint in geographic coordinates
     void	goToWaypointGeo(const WaypointGeo& _wp);
+
+    /// Go to a list of waypoint using local planner
+    /// \param _wp goal List Waypoint
+    void    goToListofWaypoint(const WaypointList& _wp);
 
     /// Follow a list of waypoints, one after another
     // void trackPath(const Path& _path) override;
@@ -166,6 +200,15 @@ public:
     void    takeOff(double _height) override;
     /// Land on the current position.
     void	land() override;
+
+    /// Land on the current position.
+    void	land_point(const Waypoint& _wp) override;
+
+    /// Plan path from start to goal (NEW)
+    /// \param _start_wp goal waypoint
+    /// \param _goal_wp goal waypoint
+    void	plan(const Waypoint& _start_wp, const Waypoint& _goal_wp);
+    
     /// Set velocities
     /// \param _vel target velocity in world coordinates
     void    setVelocity(const Velocity& _vel) override;
@@ -205,6 +248,11 @@ private:
     geometry_msgs::Vector3Stamped current_angular_velocity_;
     geometry_msgs::QuaternionStamped current_attitude_;
 
+    nav_msgs::Odometry current_odometry_;
+    geometry_msgs::PoseArray current_wplist_;
+    int current_wpindex_ = 0;
+    std_msgs::Bool reference_reached_;    
+
     geometry_msgs::PoseStamped  cur_pose_;
     // geometry_msgs::PoseStamped  ref_pose_;
     geometry_msgs::TwistStamped cur_vel_;
@@ -224,10 +272,15 @@ private:
     bool laser_altimeter;
     bool self_arming;
 
+    FasterMode faster_mode_;
+
     float mpc_xy_vel_max;
     float mpc_z_vel_max_up;
     float mpc_z_vel_max_dn;
     float mc_yawrate_max;
+
+    float a_land, b_land;
+    float z0_land;
 
     DjiHistoryBuffer position_error_;
     DjiHistoryBuffer orientation_error_;
@@ -243,6 +296,14 @@ private:
     ros::ServiceClient mission_waypoint_action_client;
 
     ros::Publisher flight_control_pub_;
+    ros::Publisher command_pose_pub_;
+    ros::Publisher _pubRviz; 
+    ros::Publisher waypoint_pub_;
+    ros::Publisher waypoint_list_pub_;
+    ros::Publisher waypoint_reached_pub_;
+    ros::Publisher my_publisher_goal_;
+    ros::Publisher my_publisher_faster_mode_;
+
     
     //test publishers
     ros::Publisher lookahead_pub;
@@ -259,6 +320,12 @@ private:
     ros::Subscriber flight_status_sub_;
     ros::Subscriber display_mode_sub_;
 
+    ros::Subscriber odometry_sub_;
+    ros::Subscriber waypoint_list_sub_;
+
+    ros::Subscriber free_waypoint_list_sub_;
+    ros::Subscriber goal_wp_local_planner_;
+
     int robot_id_;
     std::string pose_frame_id_;
     // std::string uav_home_frame_id_;
@@ -273,6 +340,7 @@ private:
     
     bool calling_takeoff = false;
     bool calling_land = false;
+    bool calling_waypoint = false;
 
     bool activated_ = false;
     bool home_set_ = false;
@@ -281,3 +349,4 @@ private:
 }}	// namespace grvc::ual
 
 #endif // UAV_ABSTRACTION_LAYER_BACKEND_DJI_H
+

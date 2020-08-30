@@ -25,9 +25,11 @@
 #include <atomic>
 #include <mutex>
 #include <std_msgs/Float32.h>
+#include <std_msgs/Bool.h>
 #include <geometry_msgs/Vector3Stamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <nav_msgs/Odometry.h>
@@ -36,6 +38,7 @@
 namespace grvc { namespace ual {
 
 typedef geometry_msgs::PoseStamped      Pose;
+typedef geometry_msgs::PoseArray        WaypointList;
 typedef geometry_msgs::PoseStamped      Waypoint;
 typedef sensor_msgs::NavSatFix          WaypointGeo;
 typedef geometry_msgs::TwistStamped     Velocity;
@@ -79,16 +82,35 @@ public:
     virtual Transform transform() const = 0;
     /// Current robot state
     inline State state() { return this->state_; }
+
+    /// Latest WaypointList from GlobalPlanner  (NEW)
+    virtual WaypointList waypoint_list() const = 0;
+
+
     /// Current reference pose
     virtual Pose referencePose() = 0;
+
+    /// Flag reference reached  (NEW)
+    virtual std_msgs::Bool referenceReached() = 0;
 
     /// Set pose
     /// \param _pose target pose
     virtual void    setPose(const geometry_msgs::PoseStamped& _pose) = 0;
 
+        /// \param _pose target pose
+    virtual void    setPosePlanner(const geometry_msgs::PoseStamped& _pose) = 0;
+
     /// Go to the specified waypoint, following a straight line
     /// \param _wp goal waypoint
     virtual void	goToWaypoint(const Waypoint& _wp) = 0;
+
+    /// Go to the specified waypoint using local planner
+    /// \param _wp goal waypoint
+    virtual void	goToWaypoint_controller(const Waypoint& _wp) = 0;
+
+    /// Go to a list of waypoint using local planner
+    /// \param _wp goal List Waypoint
+    virtual void    goToListofWaypoint(const WaypointList& _wp) = 0;
 
     /// Go to the specified waypoint in geographic coordinates, following a straight line
     /// \param _wp goal waypoint in geographic coordinates
@@ -99,6 +121,14 @@ public:
     virtual void    takeOff(double _height) = 0;
     /// Land on the current position.
     virtual void	land() = 0;
+    /// Land on given waypoint.
+    virtual void	land_point(const Waypoint& _wp) = 0;
+
+    /// Plan path from start to goal (NEW)
+    /// \param _start_wp goal waypoint
+    /// \param _goal_wp goal waypoint
+    virtual void	plan(const Waypoint& _start_wp, const Waypoint& _goal_wp) = 0;   
+
     /// Set velocities
     /// \param _vel target velocity in world coordinates
     virtual void    setVelocity(const Velocity& _vel) = 0;

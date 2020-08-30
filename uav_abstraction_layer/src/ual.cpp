@@ -21,6 +21,7 @@
 #include <uav_abstraction_layer/ual.h>
 #include <uav_abstraction_layer/GoToWaypointGeo.h>
 #include <uav_abstraction_layer/SetHome.h>
+#include <uav_abstraction_layer/Plan.h>
 #include <ros/ros.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <std_srvs/Empty.h>
@@ -80,9 +81,15 @@ UAL::UAL(Backend* _backend) {
             std::string ual_ns = "ual";
             std::string take_off_srv = ual_ns + "/take_off";
             std::string land_srv = ual_ns + "/land";
+            std::string land_point_srv = ual_ns + "/land_point";
             std::string go_to_waypoint_srv = ual_ns + "/go_to_waypoint";
+            std::string go_to_waypoint_controller_srv = ual_ns + "/go_to_waypoint_controller";
+            std::string go_to_waypoint_list_srv = ual_ns + "/go_to_waypoint_list";
             std::string go_to_waypoint_geo_srv = ual_ns + "/go_to_waypoint_geo";
+            std::string planner_srv = ual_ns + "/global_planner";
+
             std::string set_pose_topic = ual_ns + "/set_pose";
+            std::string set_pose_planner_topic = ual_ns + "/set_pose_planner";
             std::string set_velocity_topic = ual_ns + "/set_velocity";
             std::string recover_from_manual_srv = ual_ns + "/recover_from_manual";
             std::string set_home_srv = ual_ns + "/set_home";
@@ -91,6 +98,7 @@ UAL::UAL(Backend* _backend) {
             std::string odometry_topic = ual_ns + "/odom";
             std::string state_topic = ual_ns + "/state";
             std::string ref_pose_topic = ual_ns + "/ref_pose";
+            std::string waypoint_reached_topic = ual_ns + "/waypoint_reached";
 
             ros::NodeHandle nh;
             ros::ServiceServer take_off_service =
@@ -105,24 +113,62 @@ UAL::UAL(Backend* _backend) {
                 [this](Land::Request &req, Land::Response &res) {
                 return this->land(req.blocking);
             });
+
+            ros::ServiceServer land_point_service =
+                nh.advertiseService<LandPoint::Request, LandPoint::Response>(
+                land_point_srv,
+                [this](LandPoint::Request &req, LandPoint::Response &res) {
+                return this->land(req.waypoint, req.blocking);
+            });
+               
             ros::ServiceServer go_to_waypoint_service =
                 nh.advertiseService<GoToWaypoint::Request, GoToWaypoint::Response>(
                 go_to_waypoint_srv,
                 [this](GoToWaypoint::Request &req, GoToWaypoint::Response &res) {
                 return this->goToWaypoint(req.waypoint, req.blocking);
             });
+            ros::ServiceServer go_to_waypoint_controller_service =
+                nh.advertiseService<GoToWaypoint::Request, GoToWaypoint::Response>(
+                go_to_waypoint_controller_srv,
+                [this](GoToWaypoint::Request &req, GoToWaypoint::Response &res) {
+                return this->goToWaypoint_controller(req.waypoint, req.blocking);
+            });
+
+            ros::ServiceServer go_to_waypoint_list_service =
+                nh.advertiseService<GoToWaypointList::Request, GoToWaypointList::Response>(
+                go_to_waypoint_list_srv,
+                [this](GoToWaypointList::Request &req, GoToWaypointList::Response &res) {
+                return this->goToListofWaypoint(req.waypoint_list, req.blocking);
+            });
+
             ros::ServiceServer go_to_waypoint_geo_service =
                 nh.advertiseService<GoToWaypointGeo::Request, GoToWaypointGeo::Response>(
                 go_to_waypoint_geo_srv,
                 [this](GoToWaypointGeo::Request &req, GoToWaypointGeo::Response &res) {
                 return this->goToWaypointGeo(req.waypoint, req.blocking);
             });
+
+            ros::ServiceServer planner_service =
+                nh.advertiseService<Plan::Request, Plan::Response>(
+                planner_srv,
+                [this](Plan::Request &req, Plan::Response &res) {
+                return this->plan(req.start, req.goal, req.blocking);
+            });
+
             ros::Subscriber set_pose_sub =
                 nh.subscribe<geometry_msgs::PoseStamped>(
                 set_pose_topic, 1,
                 [this](const geometry_msgs::PoseStamped::ConstPtr& _msg) {
                 this->setPose(*_msg);
             });
+
+            ros::Subscriber set_pose_planner_sub =
+                nh.subscribe<geometry_msgs::PoseStamped>(
+                set_pose_planner_topic, 1,
+                [this](const geometry_msgs::PoseStamped::ConstPtr& _msg) {
+                this->setPosePlanner(*_msg);
+            });
+
             ros::Subscriber set_velocity_sub =
                 nh.subscribe<geometry_msgs::TwistStamped>(
                 set_velocity_topic, 1,
@@ -146,6 +192,7 @@ UAL::UAL(Backend* _backend) {
             ros::Publisher odometry_pub = nh.advertise<nav_msgs::Odometry>(odometry_topic, 10);
             ros::Publisher state_pub = nh.advertise<uav_abstraction_layer::State>(state_topic, 10);
             ros::Publisher ref_pose_pub = nh.advertise<geometry_msgs::PoseStamped>(ref_pose_topic, 10);
+            ros::Publisher waypoint_reached_pub = nh.advertise<std_msgs::Bool>(waypoint_reached_topic.c_str(), 10);
             static tf2_ros::TransformBroadcaster tf_pub;
 
             // Publish @ 30Hz default
@@ -159,6 +206,7 @@ UAL::UAL(Backend* _backend) {
                 state_pub.publish(this->state());
                 tf_pub.sendTransform(this->transform());
                 ref_pose_pub.publish(this->referencePose()); //!TODO: publish only during position control?
+                waypoint_reached_pub.publish(this->referenceReached());
                 loop_rate.sleep();
             }
         });
@@ -207,6 +255,30 @@ bool UAL::setPose(const geometry_msgs::PoseStamped& _pose) {
     backend_->threadSafeCall(&Backend::setPose, ref_pose);
     return true;
 }
+
+bool UAL::setPosePlanner(const geometry_msgs::PoseStamped& _pose) {
+    // Check required state
+    if (backend_->state() != uav_abstraction_layer::State::FLYING_AUTO) {
+        ROS_ERROR("Unable to setPosePlanner: not FLYING_AUTO!");
+        return false;
+    }
+    // Override any previous FLYING function
+    if (!backend_->isIdle()) { backend_->abort(false); }
+
+    // Check consistency of pose data (isnan?)
+    if ( std::isnan(_pose.pose.position.x) || std::isnan(_pose.pose.position.y) || std::isnan(_pose.pose.position.z) ||
+         std::isnan(_pose.pose.orientation.x) || std::isnan(_pose.pose.orientation.y) || std::isnan(_pose.pose.orientation.z) ||
+         std::isnan(_pose.pose.orientation.w) ) {
+        ROS_ERROR("Unable to setPosePlanner: NaN received");
+        return false;
+    }
+
+    geometry_msgs::PoseStamped ref_pose = _pose;
+    validateOrientation(ref_pose.pose.orientation);
+    backend_->threadSafeCall(&Backend::setPosePlanner, ref_pose);
+    return true;
+}
+
 bool UAL::goToWaypoint(const Waypoint& _wp, bool _blocking) {
     // Check required state
     if (backend_->state() != uav_abstraction_layer::State::FLYING_AUTO) {
@@ -214,7 +286,7 @@ bool UAL::goToWaypoint(const Waypoint& _wp, bool _blocking) {
         return false;
     }
     // Override any previous FLYING function
-    if (!backend_->isIdle()) { backend_->abort(false); }
+    if (!backend_->isIdle()) { backend_->abort(); }
 
     // Check consistency of pose data (isnan?)
     if ( std::isnan(_wp.pose.position.x) || std::isnan(_wp.pose.position.y) || std::isnan(_wp.pose.position.z) ||
@@ -225,7 +297,7 @@ bool UAL::goToWaypoint(const Waypoint& _wp, bool _blocking) {
     }
 
     geometry_msgs::PoseStamped ref_wp = _wp;
-    validateOrientation(ref_wp.pose.orientation);
+    // validateOrientation(ref_wp.pose.orientation);
     if (_blocking) {
         if (!backend_->threadSafeCall(&Backend::goToWaypoint, ref_wp)) {
             ROS_INFO("Blocking goToWaypoint rejected!");
@@ -242,6 +314,85 @@ bool UAL::goToWaypoint(const Waypoint& _wp, bool _blocking) {
     }
     return true;
 }
+
+bool UAL::goToWaypoint_controller(const Waypoint& _wp, bool _blocking) {
+    // Check required state
+    if (backend_->state() != uav_abstraction_layer::State::FLYING_AUTO) {
+        if (backend_->state() != uav_abstraction_layer::State::LANDING) {    
+        ROS_ERROR("Unable to goToWaypoint_controller: not FLYING_AUTO!");
+        return false;
+        }
+    }
+    // Override any previous FLYING function
+    if (!backend_->isIdle()) { backend_->abort(); }
+
+    // Check consistency of pose data (isnan?)
+    if ( std::isnan(_wp.pose.position.x) || std::isnan(_wp.pose.position.y) || std::isnan(_wp.pose.position.z) ||
+         std::isnan(_wp.pose.orientation.x) || std::isnan(_wp.pose.orientation.y) || std::isnan(_wp.pose.orientation.z) ||
+         std::isnan(_wp.pose.orientation.w) ) {
+        ROS_ERROR("Unable to goToWaypoint_controller: NaN received");
+        return false;
+    }
+
+    geometry_msgs::PoseStamped ref_wp = _wp;
+    validateOrientation(ref_wp.pose.orientation);
+    if (_blocking) {
+        if (!backend_->threadSafeCall(&Backend::goToWaypoint_controller, ref_wp)) {
+            ROS_INFO("Blocking goToWaypoint_controller rejected!");
+            return false;
+        }
+    } else {
+        if (running_thread_.joinable()) running_thread_.join();
+        // Call function on a thread:
+        running_thread_ = std::thread ([this, ref_wp]() {
+            if (!this->backend_->threadSafeCall(&Backend::goToWaypoint_controller, ref_wp)) {
+                ROS_INFO("Non-blocking goToWaypoint_controller rejected!");
+            }
+        });
+    }
+    return true;
+}
+
+bool UAL::goToListofWaypoint(const WaypointList& _wp, bool _blocking) {
+    // Check required state
+    if (backend_->state() != uav_abstraction_layer::State::FLYING_AUTO) {
+        ROS_ERROR("Unable to goToListofWaypoint: not FLYING_AUTO!");
+        return false;
+    }
+    // Override any previous FLYING function
+    if (!backend_->isIdle()) { backend_->abort(); }
+
+    // Check consistency of pose data (isnan?)
+    for (int i=0 ; i < _wp.poses.size(); i++)
+    {
+        if (std::isnan(_wp.poses[i].position.x) || std::isnan(_wp.poses[i].position.y) || std::isnan(_wp.poses[i].position.z) ||
+            std::isnan(_wp.poses[i].orientation.x) || std::isnan(_wp.poses[i].orientation.y) || std::isnan(_wp.poses[i].orientation.z) ||
+            std::isnan(_wp.poses[i].orientation.w) ) {
+            ROS_ERROR("Unable to goToListofWaypoint: NaN received");
+            return false;
+        }
+    }
+
+    // geometry_msgs::PoseStamped ref_wp = _wp;
+    // validateOrientation(ref_wp.pose.orientation);
+    WaypointList ref_wp = _wp;
+    if (_blocking) {
+        if (!backend_->threadSafeCall(&Backend::goToListofWaypoint, ref_wp)) {
+            ROS_INFO("Blocking goToListofWaypoint rejected!");
+            return false;
+        }
+    } else {
+        if (running_thread_.joinable()) running_thread_.join();
+        // Call function on a thread:
+        running_thread_ = std::thread ([this, ref_wp]() {
+            if (!this->backend_->threadSafeCall(&Backend::goToListofWaypoint, ref_wp)) {
+                ROS_INFO("Non-blocking goToListofWaypoint rejected!");
+            }
+        });
+    }
+    return true;
+}
+
 bool UAL::goToWaypointGeo(const WaypointGeo& _wp, bool _blocking) {
     // Check required state
     if (backend_->state() != uav_abstraction_layer::State::FLYING_AUTO) {
@@ -272,6 +423,53 @@ bool UAL::goToWaypointGeo(const WaypointGeo& _wp, bool _blocking) {
         });
     }
     return true;
+}
+
+bool UAL::plan(const Waypoint& _wp_start, const Waypoint& _wp_goal, bool _blocking) {
+    // Check required state
+    if (backend_->state() != uav_abstraction_layer::State::FLYING_AUTO) {
+        ROS_ERROR("Unable to PlanService: not FLYING_AUTO!");
+        return false;
+    }
+    // Override any previous FLYING function
+    if (!backend_->isIdle()) { backend_->abort(false); }
+
+    // Check consistency of _wp_start pose data (isnan?)
+    if ( std::isnan(_wp_start.pose.position.x) || std::isnan(_wp_start.pose.position.y) || std::isnan(_wp_start.pose.position.z) ||
+         std::isnan(_wp_start.pose.orientation.x) || std::isnan(_wp_start.pose.orientation.y) || std::isnan(_wp_start.pose.orientation.z) ||
+         std::isnan(_wp_start.pose.orientation.w) ) {
+        ROS_ERROR("Unable to PlanService: wP_Start NaN received");
+        return false;
+    }
+
+    // Check consistency of _wp_goal pose data (isnan?)
+    if ( std::isnan(_wp_goal.pose.position.x) || std::isnan(_wp_goal.pose.position.y) || std::isnan(_wp_goal.pose.position.z) ||
+         std::isnan(_wp_goal.pose.orientation.x) || std::isnan(_wp_goal.pose.orientation.y) || std::isnan(_wp_goal.pose.orientation.z) ||
+         std::isnan(_wp_goal.pose.orientation.w) ) {
+        ROS_ERROR("Unable to PlanService: wP_Goal NaN received");
+        return false;
+    }
+
+    geometry_msgs::PoseStamped ref_wp = _wp_goal;
+    validateOrientation(ref_wp.pose.orientation);
+    ref_wp = _wp_goal;
+    validateOrientation(ref_wp.pose.orientation);
+    
+    if (_blocking) {
+        if (!backend_->threadSafeCall(&Backend::plan, _wp_start, _wp_goal)) {
+            ROS_INFO("Blocking PlanService rejected!");
+            return false;
+        }
+    } else {
+        if (running_thread_.joinable()) running_thread_.join();
+        // Call function on a thread:
+        running_thread_ = std::thread ([this, _wp_start, _wp_goal]() {
+            if (!this->backend_->threadSafeCall(&Backend::plan, _wp_start, _wp_goal)) {
+                ROS_INFO("Non-blocking PlanService rejected!");
+            }
+        });
+    }
+    return true;   
 }
 
 bool UAL::takeOff(double _height, bool _blocking) {
@@ -307,8 +505,10 @@ bool UAL::takeOff(double _height, bool _blocking) {
 bool UAL::land(bool _blocking) {
     // Check required state
     if (backend_->state() != uav_abstraction_layer::State::FLYING_AUTO) {
-        ROS_ERROR("Unable to land: not FLYING_AUTO!");
+        if (backend_->state() != uav_abstraction_layer::State::LANDING) {
+        ROS_ERROR("Unable to land: not FLYING_AUTO or LANDING!");
         return false;
+        }
     }
     // Override any previous FLYING function
     if (!backend_->isIdle()) { backend_->abort(); }
@@ -323,6 +523,44 @@ bool UAL::land(bool _blocking) {
         // Call function on a thread:
         running_thread_ = std::thread ([this]() {
             if (!this->backend_->threadSafeCall(&Backend::land)) {
+                ROS_INFO("Non-blocking land rejected!");
+            }
+        });
+    }
+    return true;
+}
+
+bool UAL::land(const Waypoint& _wp, bool _blocking) {
+    // Check required state
+    if (backend_->state() != uav_abstraction_layer::State::FLYING_AUTO) {
+        if (backend_->state() != uav_abstraction_layer::State::LANDING) {
+        ROS_ERROR("Unable to land: not FLYING_AUTO or LANDING!");
+        return false;
+        }
+    }
+    // Override any previous FLYING function
+    if (!backend_->isIdle()) { backend_->abort(); }
+
+    // Check consistency of pose data (isnan?)
+    if ( std::isnan(_wp.pose.position.x) || std::isnan(_wp.pose.position.y) || std::isnan(_wp.pose.position.z) ||
+         std::isnan(_wp.pose.orientation.x) || std::isnan(_wp.pose.orientation.y) || std::isnan(_wp.pose.orientation.z) ||
+         std::isnan(_wp.pose.orientation.w) ) {
+        ROS_ERROR("Unable to land: NaN received");
+        return false;
+    }
+
+    geometry_msgs::PoseStamped ref_wp = _wp;
+    validateOrientation(ref_wp.pose.orientation);
+    if (_blocking) {
+        if (!backend_->threadSafeCall(&Backend::land_point, ref_wp)) {
+            ROS_INFO("Blocking land rejected!");
+            return false;
+        }
+    } else {
+        if (running_thread_.joinable()) running_thread_.join();
+        // Call function on a thread:
+        running_thread_ = std::thread ([this, ref_wp]() {
+            if (!this->backend_->threadSafeCall(&Backend::land_point, ref_wp)) {
                 ROS_INFO("Non-blocking land rejected!");
             }
         });

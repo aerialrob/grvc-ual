@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(uav_abstraction_layer)
 
-set(GRVC_UAL_VERSION 3.1)
+set(GRVC_UAL_VERSION 2.2)
 
 ## Add support for C++11, supported in ROS Kinetic and newer
 add_definitions(-std=c++11)
@@ -16,7 +16,6 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf2_ros
   sensor_msgs
-  geodesy
 )
 
 ## System dependencies are found with CMake's conventions
@@ -62,10 +61,13 @@ add_service_files(
   FILES
   Float32Param.srv
   GoToWaypoint.srv
+  GoToWaypointList.srv
   GoToWaypointGeo.srv
   TakeOff.srv
   Land.srv
+  LandPoint.srv
   SetHome.srv
+  Plan.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -113,7 +115,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES uav_abstraction_layer
-  CATKIN_DEPENDS message_runtime geometry_msgs roscpp std_msgs tf2_ros sensor_msgs geodesy
+  CATKIN_DEPENDS message_runtime geometry_msgs roscpp std_msgs tf2_ros sensor_msgs 
 #  DEPENDS system_lib
 )
 

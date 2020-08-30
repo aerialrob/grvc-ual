@@ -84,13 +84,8 @@ public:
         // Apply anti wind-up 777 Analyze other options
         accum_err_ = std::min(std::max(accum_err_, min_windup_), max_windup_);
     
-        // Compute PI
-        last_result_ = kp_*_err + ki_*accum_err_;
-        // Add D term unless is NaN
-        float d_term = kd_*(_err- last_error_)/_dt;
-        if (!std::isnan(d_term)) {
-            last_result_ += d_term;
-        }
+        // Compute PID
+        last_result_ = kp_*_err + ki_*accum_err_ + kd_*(_err- last_error_)/_dt;
         last_error_ = _err;
     
         // Saturate signal

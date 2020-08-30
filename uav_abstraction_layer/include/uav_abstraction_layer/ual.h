@@ -23,8 +23,10 @@
 
 #include <uav_abstraction_layer/backend.h>
 #include <uav_abstraction_layer/GoToWaypoint.h>
+#include <uav_abstraction_layer/GoToWaypointList.h>
 #include <uav_abstraction_layer/TakeOff.h>
 #include <uav_abstraction_layer/Land.h>
+#include <uav_abstraction_layer/LandPoint.h>
 #include <uav_abstraction_layer/State.h>
 #include <thread>
 
@@ -55,8 +57,14 @@ public:
     /// Latest transform estimation of the robot
     Transform transform() const { return backend_->transform(); }
 
+    /// Latest WaypointList from GlobalPlanner  (NEW)
+    WaypointList waypoint_list() const { return backend_->waypoint_list(); }
+
     /// Current reference pose
     Pose    referencePose() const { return backend_->referencePose(); }
+
+    /// Flag reference reached  (NEW)
+    std_msgs::Bool referenceReached() const { return backend_->referenceReached(); }
 
     /// Current robot state
     uav_abstraction_layer::State state() {
@@ -69,11 +77,24 @@ public:
     /// \param _pose target pose
     bool    setPose(const geometry_msgs::PoseStamped& _pose);
 
-    /// Go to the specified waypoint, following a straight line
+        /// Set pose_planner
+    /// \param _pose target pose
+    bool    setPosePlanner(const geometry_msgs::PoseStamped& _pose);
+
+    /// Go to the specified waypoint using local planner
     /// \param _wp goal waypoint
     /// \param _blocking indicates if function call is blocking (default = true)
     bool	goToWaypoint(const Waypoint& _wp, bool _blocking = true);
 
+    /// Go to the specified waypoint, following a straight line
+    /// \param _wp goal waypoint
+    /// \param _blocking indicates if function call is blocking (default = true)
+    bool	goToWaypoint_controller(const Waypoint& _wp, bool _blocking = true);
+
+    /// Go to a list of waypoint using local planner
+    /// \param _wp goal List Waypoint
+    bool    goToListofWaypoint(const WaypointList& _wp, bool _blocking = true);
+    
     /// Go to the specified waypoint in geographic coordinates, following a straight line
     /// \param _wp goal waypoint in geographic coordinates
     /// \param _blocking indicates if function call is blocking (default = true)
@@ -87,6 +108,17 @@ public:
     /// Land on the current position
     /// \param _blocking indicates if function call is blocking (default = true)
     bool	land(bool _blocking = true);
+
+    /// Land on the given waypoint
+    /// \param _wp goal waypoint in geographic coordinates
+    /// \param _blocking indicates if function call is blocking (default = true)
+    bool	land(const Waypoint& _wp, bool _blocking = true);
+
+    /// Plan path from start to goal (NEW)
+    /// \param _start_wp goal waypoint
+    /// \param _goal_wp goal waypoint
+    /// \param _blocking indicates if function call is blocking (default = true)
+    bool	plan(const Waypoint& _start_wp, const Waypoint& _goal_wp, bool _blocking = true);
 
     /// Set velocities
     /// \param _vel target velocity in world coordinates

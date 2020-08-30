@@ -11,6 +11,13 @@ find_package(catkin REQUIRED COMPONENTS
   dji_sdk
   roscpp
   uav_abstraction_layer
+  mav_planning_common
+  mav_trajectory_generation_ros
+  mav_msgs
+  mav_planning_msgs
+  visualization_msgs
+  snapstack_msgs
+  faster_msgs
 )
 
 ## System dependencies are found with CMake's conventions

@@ -10,24 +10,27 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 -->
 <launch>
 
-    <arg name="id" default="1"/>
+    <arg name="id" default="3"/>
     <arg name="ual_server" default="on"/>
     <arg name="ual_pub_rate" default="30.0"/>
 
     <arg name="pose_frame_id" default=""/><!-- To publish ual/pose in other frame than local, e.g. map -->
     <arg name="dji_offboard_rate" default="30.0"/>
 
-    <arg name="position_th" default="0.33"/>
+    <arg name="position_th" default="0.3"/>
     <arg name="orientation_th" default="0.6"/>
     <arg name="vel_factor" default="0.7"/>
     <arg name="laser_altimeter" default="false"/>
-    <arg name="self_arming" default="false"/>
+    <arg name="self_arming" default="true"/>
     <arg name="xy_vel_max" default="2.3"/>
     <arg name="z_vel_max_up" default="2.0"/>
     <arg name="z_vel_max_dn" default="2.0"/>
     <arg name="yawrate_max" default="0.8"/>
 
-    <!-- Launch DJI-ROS node -->
+    <arg name="odometry_topic" default="/firefly/ground_truth/odometry"/>
+    <arg name="comand_pose_topic" default="/firefly/command/pose"/>
+
+    <!-- Launch DJI-ROS node 
     <node pkg="dji_sdk" type="dji_sdk_node" name="dji_sdk" output="screen">
         <param name="serial_name" type="string" value="/dev/ttyUSB0"/>
         <param name="baud_rate" type="int" value="921600"/>
@@ -36,10 +39,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         <param name="align_time" type="bool" value="false"/>
         <param name="enc_key" type="string" value="your app key here"/>
         <param name="use_broadcast" type="bool" value="false"/>
-    </node>
+    </node> -->
 
     <!-- Launch UAL server -->
     <node pkg="ual_backend_dji_ros" type="ual_backend_dji_ros_server" name="ual" output="screen">
+        <param name="a_land" value="1.3"/>
+        <param name="b_land" value="0.3"/>
+        <param name="z0_land" value="1"/>
+
         <param name="uav_id" value="$(arg id)"/>
         <param name="ual_server" value="$(arg ual_server)"/>
         <param name="ual_pub_rate" value="$(arg ual_pub_rate)"/>
@@ -57,8 +64,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         <param name="home_pose_parent_frame" value="map"/><!-- default= map -->
         <!-- Define home pose relative to global map frame -->
         <rosparam param="home_pose">[0, 0, 0]</rosparam><!-- [x,y,z] -->
+
+        <remap from="/odometry/filtered_map" to="$(arg odometry_topic)"/>
+        <remap from="/sdronef1/command/pose" to="$(arg comand_pose_topic)"/>
         <!-- Define the global map frame geo position and let the UAL estimate the relative home pose -->
         <!-- <rosparam param="map_origin_geo">[37.558542, -5.931074, 7.89]</rosparam> --><!-- [lat,lon,alt] -->
     </node>
+
+
+    <!-- <node pkg="mission_pkg" type="mission_node" name="mission_node" output="screen">
+    </node> -->
 
 </launch>

@@ -59,6 +59,15 @@
   <exec_depend>roscpp</exec_depend>
   <exec_depend>uav_abstraction_layer</exec_depend>
 
+  <build_depend>mav_planning_common</build_depend>
+  <build_depend>mav_trajectory_generation_ros</build_depend>
+  <build_depend>mav_msgs</build_depend>
+  <build_depend>mav_planning_msgs</build_depend>
+  <build_depend>snapstack_msgs</build_depend>
+  <build_depend>faster_msgs</build_depend>
+
+
+
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

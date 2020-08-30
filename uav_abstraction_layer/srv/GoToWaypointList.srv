@@ -1,0 +1,3 @@
+geometry_msgs/PoseArray waypoint_list
+bool blocking
+---
