@@ -104,14 +104,14 @@ BackendDjiRos::BackendDjiRos()
     std::string get_laser_altitude_topic = "/laser_altitude";
 
     //(NEW)
-    std::string get_odometry_topic = "/odometry/filtered_map";
+    std::string get_odometry_topic = "/odometry";
     std::string get_wp_list_topic = "/firefly/waypoint_list_g_planner";
 
     // ROS published topics
     std::string flight_control_topic = dji_ns + "/flight_control_setpoint_generic";
-    std::string command_pose_topic = "/sdronef1/command/pose";
-    std::string free_wp_topic = "/firefly/mav_local_planner/wp_free";
-    std::string goal_wp_local_topic ="/firefly/mav_local_planner/goal_local_pose";
+    std::string command_pose_topic = "/command/pose";
+    std::string free_wp_topic = "/mav_local_planner/wp_free";
+    std::string goal_wp_local_topic ="/mav_local_planner/goal_local_pose";
 
     // ROS services' Clients
     activation_client_ = nh.serviceClient<dji_sdk::Activation>(activation_srv.c_str());
@@ -126,7 +126,7 @@ BackendDjiRos::BackendDjiRos()
     flight_control_pub_ = nh.advertise<sensor_msgs::Joy>(flight_control_topic.c_str(), 1);
     command_pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>(command_pose_topic.c_str(), 1);
     _pubRviz = nh.advertise<visualization_msgs::Marker>("ual_dji/vis_marker_ref_waypoints", 1000);
-    waypoint_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, true);
+    waypoint_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/waypoint", 1, true);
     waypoint_list_pub_ = nh.advertise<geometry_msgs::PoseArray>("/firefly/waypoint_list", 1, true);
     waypoint_reached_pub_ = nh.advertise<std_msgs::Bool>(mission_waypoint_reached_topic.c_str(), 1);
 
