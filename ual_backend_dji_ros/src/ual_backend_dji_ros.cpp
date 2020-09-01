@@ -441,58 +441,58 @@ void BackendDjiRos::controlThread() {
 
 grvc::ual::State BackendDjiRos::guessState() {
     // Sequentially checks allow state deduction
-    // if (!this->isReady()) { return uav_abstraction_layer::State::UNINITIALIZED; }
-    // if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED) { 
-    //     if (self_arming) {
-    //         return uav_abstraction_layer::State::LANDED_ARMED;            
-    //     } else {
-    //         return uav_abstraction_layer::State::LANDED_DISARMED; 
-    //     }
-    // }
-    // if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_ON_GROUND) { return uav_abstraction_layer::State::LANDED_ARMED;}
-    // if (this->calling_takeoff && this->flight_status_.data == DJISDK::FlightStatus::STATUS_IN_AIR ) 
-    //     { return uav_abstraction_layer::State::TAKING_OFF;}
-    // if (this->calling_land && this->flight_status_.data == DJISDK::FlightStatus::STATUS_IN_AIR ) 
-    //     { return uav_abstraction_layer::State::LANDING;}
-    // if (!this->calling_takeoff && !this->calling_land 
-    //     && this->flight_status_.data == DJISDK::FlightStatus::STATUS_IN_AIR 
-    //     // && this->display_mode_.data == 6) 
-    //     && this->display_mode_.data == DJISDK::DisplayMode::MODE_NAVI_SDK_CTRL) 
-    //     // && this->display_mode_.data == DJISDK::DisplayMode::MODE_P_GPS) 
-    //     { return uav_abstraction_layer::State::FLYING_AUTO;}
-
-    // return uav_abstraction_layer::State::FLYING_MANUAL;
-
-
-/// SIMULATION 
-//////////////////////////////////////////////
-
-    // // Sequentially checks allow state deduction
     if (!this->isReady()) { return uav_abstraction_layer::State::UNINITIALIZED; }
-    if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED && current_position_.point.z < 0.2) { 
+    if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED) { 
         if (self_arming) {
             return uav_abstraction_layer::State::LANDED_ARMED;            
         } else {
             return uav_abstraction_layer::State::LANDED_DISARMED; 
         }
     }
-    // if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_ON_GROUND) { return uav_abstraction_layer::State::LANDED_ARMED;}
-    if (this->calling_takeoff ) 
+    if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_ON_GROUND) { return uav_abstraction_layer::State::LANDED_ARMED;}
+    if (this->calling_takeoff && this->flight_status_.data == DJISDK::FlightStatus::STATUS_IN_AIR ) 
         { return uav_abstraction_layer::State::TAKING_OFF;}
-    if (this->calling_land  ) 
+    if (this->calling_land && this->flight_status_.data == DJISDK::FlightStatus::STATUS_IN_AIR ) 
         { return uav_abstraction_layer::State::LANDING;}
-    if (!this->calling_takeoff && !this->calling_land && current_position_.point.z > 0.5
-         
+    if (!this->calling_takeoff && !this->calling_land 
+        && this->flight_status_.data == DJISDK::FlightStatus::STATUS_IN_AIR 
         // && this->display_mode_.data == 6) 
-        ) 
+        && this->display_mode_.data == DJISDK::DisplayMode::MODE_NAVI_SDK_CTRL) 
         // && this->display_mode_.data == DJISDK::DisplayMode::MODE_P_GPS) 
         { return uav_abstraction_layer::State::FLYING_AUTO;}
 
-    // if (this->calling_waypoint)
-    // {return uav_abstraction_layer::State::FLYING_WAYPOINT;}       
-
-
     return uav_abstraction_layer::State::FLYING_MANUAL;
+
+
+/// SIMULATION 
+//////////////////////////////////////////////
+
+    // // Sequentially checks allow state deduction
+    // if (!this->isReady()) { return uav_abstraction_layer::State::UNINITIALIZED; }
+    // if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED && current_position_.point.z < 0.2) { 
+    //     if (self_arming) {
+    //         return uav_abstraction_layer::State::LANDED_ARMED;            
+    //     } else {
+    //         return uav_abstraction_layer::State::LANDED_DISARMED; 
+    //     }
+    // }
+    // // if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_ON_GROUND) { return uav_abstraction_layer::State::LANDED_ARMED;}
+    // if (this->calling_takeoff ) 
+    //     { return uav_abstraction_layer::State::TAKING_OFF;}
+    // if (this->calling_land  ) 
+    //     { return uav_abstraction_layer::State::LANDING;}
+    // if (!this->calling_takeoff && !this->calling_land && current_position_.point.z > 0.5
+         
+    //     // && this->display_mode_.data == 6) 
+    //     ) 
+    //     // && this->display_mode_.data == DJISDK::DisplayMode::MODE_P_GPS) 
+    //     { return uav_abstraction_layer::State::FLYING_AUTO;}
+
+    // // if (this->calling_waypoint)
+    // // {return uav_abstraction_layer::State::FLYING_WAYPOINT;}       
+
+
+    // return uav_abstraction_layer::State::FLYING_MANUAL;
 
 
 // return uav_abstraction_layer::State::FLYING_AUTO;
