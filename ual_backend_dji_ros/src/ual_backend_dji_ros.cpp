@@ -822,7 +822,7 @@ void BackendDjiRos::land() {
         // Get next heigth descending from 1mtr
         // next_wp.pose.position.z = getNextHeight(freq, ros_it, a, b);
         next_wp.pose.position.z = getNextHeight_lineal(z0_land, ros_it, a_land, b_land);
-        ROS_INFO_STREAM("z = " <<  next_wp.pose.position.z);
+        // ROS_INFO_STREAM("z = " <<  next_wp.pose.position.z);
         setPose(next_wp);   //Set pose to controller
 
         
@@ -832,7 +832,7 @@ void BackendDjiRos::land() {
         }
            
         ros_it = ros_it+0.01;   
-        ROS_INFO_STREAM("ros_it = " <<  ros_it);     
+        // ROS_INFO_STREAM("ros_it = " <<  ros_it);     
         rate.sleep();
         // ros::spinOnce();
     }
