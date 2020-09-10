@@ -10,14 +10,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 -->
 <launch>
 
-    <arg name="id" default="3"/>
+    <arg name="id" default="2"/>
     <arg name="ual_server" default="on"/>
     <arg name="ual_pub_rate" default="30.0"/>
 
-    <arg name="pose_frame_id" default=""/><!-- To publish ual/pose in other frame than local, e.g. map -->
+    <arg name="pose_frame_id" default="world"/><!--  beacon_map   To publish ual/pose in other frame than local, e.g. map -->
     <arg name="dji_offboard_rate" default="30.0"/>
 
-    <arg name="position_th" default="0.3"/>
+    <arg name="position_th" default="0.6"/>
     <arg name="orientation_th" default="0.6"/>
     <arg name="vel_factor" default="0.7"/>
     <arg name="laser_altimeter" default="false"/>
@@ -27,8 +27,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     <arg name="z_vel_max_dn" default="2.0"/>
     <arg name="yawrate_max" default="0.8"/>
 
-    <arg name="odometry_topic" default="/firefly/ground_truth/odometry"/>
-    <arg name="comand_pose_topic" default="/firefly/command/pose"/>
+    <arg name="odometry_topic" default="/odometry_remapped"/> <!--/odometry/filtered_map -->
+    <arg name="comand_pose_topic" default="/sdronef1/command/pose"/>
+    <arg name="comand_waypoint_topic" default="/sdronef1/waypoint"/>
 
     <!-- Launch DJI-ROS node 
     <node pkg="dji_sdk" type="dji_sdk_node" name="dji_sdk" output="screen">
@@ -43,7 +44,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
     <!-- Launch UAL server -->
     <node pkg="ual_backend_dji_ros" type="ual_backend_dji_ros_server" name="ual" output="screen">
-        <param name="a_land" value="1.3"/>
+        <param name="a_land" value="1.5"/>
         <param name="b_land" value="0.3"/>
         <param name="z0_land" value="1"/>
 
@@ -61,12 +62,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         <param name="z_vel_max_up" value="$(arg z_vel_max_up)"/>
         <param name="z_vel_max_dn" value="$(arg z_vel_max_dn)"/>
         <param name="yawrate_max" value="$(arg yawrate_max)"/>
-        <param name="home_pose_parent_frame" value="map"/><!-- default= map -->
+        <param name="home_pose_parent_frame" value="beacon_map"/><!-- default= map -->
         <!-- Define home pose relative to global map frame -->
         <rosparam param="home_pose">[0, 0, 0]</rosparam><!-- [x,y,z] -->
 
         <remap from="/odometry/filtered_map" to="$(arg odometry_topic)"/>
         <remap from="/sdronef1/command/pose" to="$(arg comand_pose_topic)"/>
+        <remap from="/sdronef1/waypoint" to="$(arg comand_waypoint_topic)"/>
         <!-- Define the global map frame geo position and let the UAL estimate the relative home pose -->
         <!-- <rosparam param="map_origin_geo">[37.558542, -5.931074, 7.89]</rosparam> --><!-- [lat,lon,alt] -->
     </node>

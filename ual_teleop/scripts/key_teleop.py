@@ -34,7 +34,7 @@ class NumericalParam(object):
             self.msg = "Value correctly set: {}".format(self.val)
 
 global_params = collections.OrderedDict()
-global_params['z_takeoff'] = NumericalParam('z_takeoff', 0.0, 5.0, 2.0)
+global_params['z_takeoff'] = NumericalParam('z_takeoff', 0.0, 5.0, 1.2)
 global_params['vel_mul'] = NumericalParam('vel_mul', 0.0, 3.0, 1.0)
 global_params['rate_mul'] = NumericalParam('rate_mul', 0.0, 3.0, 1.0)
 global_params['xyz_mul'] = NumericalParam('xyz_mul', 0.0, 0.3, 0.1)

@@ -58,14 +58,10 @@
 #include <visualization_msgs/MarkerArray.h>
 
 
-#include <faster_msgs/Mode.h>
-#include <snapstack_msgs/QuadGoal.h>
-#include <snapstack_msgs/State.h>
-
 // std_msgs::UInt8 S_FLYING = 2;
 typedef double Quaterniond [4];
 
-typedef faster_msgs::Mode               FasterMode; 
+
 
 namespace grvc { namespace ual {
 
@@ -272,8 +268,6 @@ private:
     bool laser_altimeter;
     bool self_arming;
 
-    FasterMode faster_mode_;
-
     float mpc_xy_vel_max;
     float mpc_z_vel_max_up;
     float mpc_z_vel_max_dn;
@@ -301,9 +295,6 @@ private:
     ros::Publisher waypoint_pub_;
     ros::Publisher waypoint_list_pub_;
     ros::Publisher waypoint_reached_pub_;
-    ros::Publisher my_publisher_goal_;
-    ros::Publisher my_publisher_faster_mode_;
-
     
     //test publishers
     ros::Publisher lookahead_pub;
