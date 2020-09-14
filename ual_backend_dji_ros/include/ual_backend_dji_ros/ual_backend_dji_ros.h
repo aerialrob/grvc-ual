@@ -335,6 +335,8 @@ private:
 
     bool activated_ = false;
     bool home_set_ = false;
+
+    bool simulation;
 };
 
 }}	// namespace grvc::ual
