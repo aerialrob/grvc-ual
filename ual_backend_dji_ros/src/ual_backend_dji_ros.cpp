@@ -54,7 +54,9 @@ BackendDjiRos::BackendDjiRos()
     orientation_th_ = 0.5*(1 - cos(orientation_th_param));
 
     pnh.param<bool>("simulation", simulation, false);
-    ROS_INFO_STREAM("BackendDjiRos simulation" << simulation);
+    // ROS_INFO_STREAM("BackendDjiRos simulation  " << simulation);
+    ROS_INFO_STREAM_COND(simulation == 0, "simulation = False");
+    ROS_INFO_STREAM_COND(simulation == 1, "simulation = True");
 
     float vel_factor_param;
     pnh.param<float>("vel_factor", vel_factor_param, 0.7);
@@ -70,7 +72,7 @@ BackendDjiRos::BackendDjiRos()
     pnh.param<float>("yawrate_max", mc_yawrate_max, 0.8);
 
     ROS_INFO("BackendDjiRos constructor with id %d",robot_id_);
-    ROS_INFO("BackendDjiRos: thresholds = %f %f", position_th_, orientation_th_);
+    ROS_INFO("BackendDjiRos: thresholds = POS %f ORI %f", position_th_, orientation_th_);
 
     pnh.param<float>("a_land", a_land, 0.7);
     pnh.param<float>("b_land", b_land, 0.3);
@@ -261,10 +263,17 @@ BackendDjiRos::BackendDjiRos()
     control_thread_ = std::thread(&BackendDjiRos::controlThread, this);
         
     // Wait for dji_sdk_node is running
-    // ros::service::waitForService("dji_sdk/activation");
-    // dji_sdk::Activation activation;
-    // activated_ = activation_client_.call(activation);
-    activated_ = true;
+    if (!simulation)
+    {
+        ros::service::waitForService("dji_sdk/activation");
+        dji_sdk::Activation activation;
+        activated_ = activation_client_.call(activation);
+    }
+    else
+    {
+        activated_ = true;
+    }
+
 
     ROS_INFO("BackendDjiRos %d running!", robot_id_);
 }
@@ -280,7 +289,6 @@ void BackendDjiRos::controlThread() {
     //test
     std_msgs::Float64 offset_y_;
 
-    // Ref pose to Controller
     geometry_msgs::PoseStamped ref_pose_controller;
     
 
@@ -340,14 +348,15 @@ void BackendDjiRos::controlThread() {
             offset_y_pub.publish(offset_y_);
             ref_pose_pub.publish(reference_pose_);
             ///
-           
-            //ref_pose.pose = 
-            // ROS_INFO_STREAM("Publishing_pose " <<  ref_pose_controller.pose.position.z);
+
+            // Publish to Reference Command Pose Controller
             ref_pose_controller.pose.position.x = reference_pose_.pose.position.x;
             ref_pose_controller.pose.position.y = reference_pose_.pose.position.y;
             ref_pose_controller.pose.position.z = reference_pose_.pose.position.z;
             ref_pose_controller.pose.orientation = reference_pose_.pose.orientation;
-            command_pose_pub_.publish(ref_pose_controller);            
+            command_pose_pub_.publish(ref_pose_controller);
+
+            // std::cout << current_laser_altitude_ << std::endl;
 
             break; 
         case eControlMode::GLOBAL_POSE:
@@ -391,9 +400,9 @@ void BackendDjiRos::controlThread() {
 }
 
 grvc::ual::State BackendDjiRos::guessState() {
-
+    // Sequentially checks allow state deduction
     if (!simulation)        // UAL STATE for DJI A3/N3
-    {
+    {        
         if (!this->isReady()) { return uav_abstraction_layer::State::UNINITIALIZED; }
         if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED) { 
             if (self_arming) {
@@ -422,40 +431,31 @@ grvc::ual::State BackendDjiRos::guessState() {
         //////////////////////////////////////////////
         // Sequentially checks allow state deduction
         if (!this->isReady()) { return uav_abstraction_layer::State::UNINITIALIZED; }
-        if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED && current_position_.point.z < 0.2) { 
+        if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED && current_position_.point.z < 0.3) { 
             if (self_arming) {
                 return uav_abstraction_layer::State::LANDED_ARMED;            
             } else {
                 return uav_abstraction_layer::State::LANDED_DISARMED; 
             }
         }
-        // if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_ON_GROUND) { return uav_abstraction_layer::State::LANDED_ARMED;}
+        if (this->flight_status_.data == DJISDK::FlightStatus::STATUS_ON_GROUND) { return uav_abstraction_layer::State::LANDED_ARMED;}
         if (this->calling_takeoff ) 
             { return uav_abstraction_layer::State::TAKING_OFF;}
         if (this->calling_land  ) 
             { return uav_abstraction_layer::State::LANDING;}
-        if (!this->calling_takeoff && !this->calling_land && current_position_.point.z > 0.2
+        if (!this->calling_takeoff && !this->calling_land && current_position_.point.z > 0.5
             
-            // && this->display_mode_.data == 6) 
+            //&& this->display_mode_.data == 6) 
             ) 
-            // && this->display_mode_.data == DJISDK::DisplayMode::MODE_P_GPS) 
+            //&& this->display_mode_.data == DJISDK::DisplayMode::MODE_P_GPS) 
             { return uav_abstraction_layer::State::FLYING_AUTO;}
 
-        // if (this->calling_waypoint)
-        // {return uav_abstraction_layer::State::FLYING_WAYPOINT;}       
+        if (this->calling_waypoint)
+        {return uav_abstraction_layer::State::FLYING_WAYPOINT;}       
 
 
         return uav_abstraction_layer::State::FLYING_MANUAL;
-    }
-    
-    // Sequentially checks allow state deduction
-
-
-
-
-
-// return uav_abstraction_layer::State::FLYING_AUTO;
-    
+    }    
 }
 
 bool BackendDjiRos::altimeter_fail() {
@@ -499,20 +499,6 @@ void BackendDjiRos::setArmed(bool _value) {
     dji_sdk::DroneArmControl arming_service;
     arming_service.request.arm = _value;
     arming_client_.call(arming_service);
-
-//     mavros_msgs::CommandBool arming_service;
-//     arming_service.request.value = _value;
-//     // Arm: unabortable?
-//     while (ros::ok()) {
-//         if (!arming_client_.call(arming_service)) {
-//             ROS_ERROR("Error in arming service calling!");
-//         }
-//         std::this_thread::sleep_for(std::chrono::milliseconds(300));
-//         ROS_INFO("Arming service response.success = %s", arming_service.response.success ? "true" : "false");
-//         ROS_INFO("Trying to set armed to %s... mavros_state_.armed = %s", _value ? "true" : "false", mavros_state_.armed ? "true" : "false");
-//         bool armed = mavros_state_.armed;  // WATCHOUT: bug-prone ros-bool/bool comparison 
-//         if (armed == _value) { break; }  // Out-of-while condition
-//     }
 }
 
 // void BackendDjiRos::setFlightMode(const std::string& _flight_mode) {
@@ -698,67 +684,57 @@ double getNextHeight_lineal(double z0, float it, double a, double b) {
  return (-a*it + (z0-b));
 }
 
-
-
-
 void BackendDjiRos::land() {
-    
+        
     dji_sdk::DroneTaskControl drone_task_control;
 
-    ROS_INFO("[UAL] Landing...");
+    ROS_INFO("[UAL] Landing to point...");
     calling_land = true;     
     ROS_INFO("[UAL] landing_transition = True");
 
-    // while (current_position_.point.z > 1.0) {
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    // }
-    //exp
-    // double freq = 50, a = 0.1, b = 0.05;
-    //lineal
+    //lineal 
     double freq = 10;
-    int ros_it = 0;
-    bool end = false;
-
+    ros::Rate rate(freq);
+    float ros_it = 0;
 
     Waypoint next_wp, des_land_z;    
-    // Send to starting landing point (1mt)
     next_wp.pose.position.x = current_position_.point.x;
     next_wp.pose.position.y = current_position_.point.y;
-    next_wp.pose.position.z = 1;
-    setPose(next_wp);    //Set pose to controller
-
+    next_wp.pose.position.z = current_position_.point.z;    
+    // Minimum z value
     des_land_z.pose.position.z = 0;
     
-    ros::Rate rate(freq);
+    // Current z point is the start point for lineal function
+    z0_land = current_position_.point.z;
 
     // Landing abortable!
     while (!abort_ && ros::ok()) {
-        // auto start = std::chrono::high_resolution_clock::now();
-        // std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        // auto end = std::chrono::high_resolution_clock::now();
-        // std::chrono::duration<double, std::milli> elapsed = end-start;
-        // std::cout << "Waited " << elapsed.count() << " ms\n";
-        // Get next heigth descending from 1mtr
-        // next_wp.pose.position.z = getNextHeight(freq, ros_it, a, b);
+        //Get next height from lineal function
         next_wp.pose.position.z = getNextHeight_lineal(z0_land, ros_it, a_land, b_land);
         ROS_INFO_STREAM("z = " <<  next_wp.pose.position.z);
         setPose(next_wp);   //Set pose to controller
-
         
-        if ((fabs(des_land_z.pose.position.z - current_position_.point.z) < 0.5*position_th_) || 
-        this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED) {            
-            break;  // Out-of-while condition
+        //If current and desired are minimum or DJI status stopped
+        if (simulation)
+        {
+            if ((fabs(des_land_z.pose.position.z - current_position_.point.z) < 0.5*position_th_) || (z0_land <= 0))
+            {            
+                break;  // Out-of-while condition
+            }
         }
-           
+        else
+        {
+            if ((fabs(des_land_z.pose.position.z - current_position_.point.z) < 0.5*position_th_) || (this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED)) 
+            {            
+                break;  // Out-of-while condition
+            }
+        }
+                   
         ros_it = ros_it+0.01;   
         // ROS_INFO_STREAM("ros_it = " <<  ros_it);     
         rate.sleep();
         // ros::spinOnce();
     }
-
-    //     while(!referencePoseReached() && !abort_ && ros::ok()) {
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    // }
 
     control_mode_ = eControlMode::IDLE;  
 
@@ -767,61 +743,60 @@ void BackendDjiRos::land() {
     // Update state right now!
     this->state_ = guessState();
 
-
     ROS_INFO("Landed! -> Disarm");  // Now disarm!
-    setArmed(false);  
-   
+    // if (!simulation)
+    // {setArmed(false);}    
         
 }
 
 void BackendDjiRos::land_point(const Waypoint& _wp) {
     
+    dji_sdk::DroneTaskControl drone_task_control;
+
     ROS_INFO("[UAL] Landing to point...");
     calling_land = true;     
     ROS_INFO("[UAL] landing_transition = True");
 
-        //exp
-    // double freq = 50, a = 0.9, b = 0.3;
-    //lineal
+    //lineal 
     double freq = 10;
+    ros::Rate rate(freq);
     float ros_it = 0;
-    bool end = false;
-
 
     Waypoint next_wp, des_land_z;    
-    // Send to starting landing point (1mt)
     next_wp = _wp;        
-    //setPose(next_wp);    //Set pose to controller above landing pad
-
+    // Minimum z value
     des_land_z.pose.position.z = 0;
     
-    ros::Rate rate(freq);
-
+    // Current z point is the start point for lineal function
     z0_land = current_position_.point.z;
 
     // Landing abortable!
     while (!abort_ && ros::ok()) {
-        // auto start = std::chrono::high_resolution_clock::now();
-        // std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        // auto end = std::chrono::high_resolution_clock::now();
-        // std::chrono::duration<double, std::milli> elapsed = end-start;
-        // std::cout << "Waited " << elapsed.count() << " ms\n";
-        // Get next heigth descending from 1mtr
-        // next_wp.pose.position.z = getNextHeight(freq, ros_it, a, b);
+        //Get next height from lineal function
         next_wp.pose.position.z = getNextHeight_lineal(z0_land, ros_it, a_land, b_land);
         ROS_INFO_STREAM("z = " <<  next_wp.pose.position.z);
         setPose(next_wp);   //Set pose to controller
-
         
-        if ((fabs(des_land_z.pose.position.z - current_position_.point.z) < 0.5*position_th_) || 
-        this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED) {            
-            break;  // Out-of-while condition
+        //If current and desired are minimum or DJI status stopped
+        if (simulation)
+        {
+            if ((fabs(des_land_z.pose.position.z - current_position_.point.z) < 0.5*position_th_) || (z0_land <= 0))
+            {            
+                break;  // Out-of-while condition
+            }
+        }
+        else
+        {
+            if ((fabs(des_land_z.pose.position.z - current_position_.point.z) < 0.5*position_th_) || (this->flight_status_.data == DJISDK::FlightStatus::STATUS_STOPPED)) 
+            {            
+                break;  // Out-of-while condition
+            }
         }
            
         ros_it = ros_it+0.01;   
         // ROS_INFO_STREAM("ros_it = " <<  ros_it);     
         rate.sleep();
-        // ros::spinOnce();
+        ros::spinOnce();
     }
 
     control_mode_ = eControlMode::IDLE;  
@@ -832,9 +807,16 @@ void BackendDjiRos::land_point(const Waypoint& _wp) {
     this->state_ = guessState();
 
     ROS_INFO("Landed! -> Disarm");  // Now disarm!
-    setArmed(false);
-        
+    // if (!simulation)
+    // {setArmed(false);}        
 }
+
+// ros::ServiceServer go_home_service =
+//                 nh.advertiseService<std_srvs::Empty::Request, std_srvs::Empty::Response>(
+//                 go_home_srv,
+//                 [this](std_srvs::Empty::Request &req, std_srvs::Empty::Response &res) {
+//                 return this->goHome();
+
 
 void BackendDjiRos::plan(const Waypoint& _wp_start, const Waypoint& _wp_goal) {
    
@@ -933,7 +915,6 @@ void BackendDjiRos::setPosePlanner(const geometry_msgs::PoseStamped& _world) {
 
     publishWPForRviz(_world, 0);    // type 0 = planner
 
-    // Publish to planner
     waypoint_pub_.publish(_world);
     control_mode_ = eControlMode::IDLE;   
 
@@ -945,6 +926,60 @@ void BackendDjiRos::setPosePlanner(const geometry_msgs::PoseStamped& _world) {
     q.w = reference_pose_.pose.orientation.w;
 }
 
+// TODO: Move from here?
+struct PurePursuitOutput {
+    geometry_msgs::Point next;
+    float t_lookahead;
+};
+
+// TODO: Move from here?
+PurePursuitOutput DjiPurePursuit(geometry_msgs::Point _current, geometry_msgs::Point _initial, geometry_msgs::Point _final, float _lookahead) {
+
+    PurePursuitOutput out;
+    out.next = _current;
+    out.t_lookahead = 0;
+    if (_lookahead <= 0) {
+        ROS_ERROR("Lookahead must be non-zero positive!");
+        return out;
+    }
+
+    Eigen::Vector3f x0 = Eigen::Vector3f(_current.x, _current.y, _current.z);
+    Eigen::Vector3f x1 = Eigen::Vector3f(_initial.x, _initial.y, _initial.z);
+    Eigen::Vector3f x2 = Eigen::Vector3f(_final.x, _final.y, _final.z);
+    Eigen::Vector3f p = x0;
+
+    Eigen::Vector3f x_21 = x2 - x1;
+    float d_21 = x_21.norm();
+    float t_min = - x_21.dot(x1-x0) / (d_21*d_21);
+
+    Eigen::Vector3f closest_point = x1 + t_min*(x2-x1);
+    float distance = (closest_point - x0).norm();
+
+    float t_lookahead = t_min;
+    if (_lookahead > distance) {
+        float a = sqrt(_lookahead*_lookahead - distance*distance);
+        t_lookahead = t_min + a/d_21;
+    }
+
+    if (t_lookahead <= 0.0) {
+        p = x1;
+        t_lookahead = 0.0;
+        // ROS_INFO("p = x1");
+    } else if (t_lookahead >= 1.0) {
+        p = x2;
+        t_lookahead = 1.0;
+        // ROS_INFO("p = x2");
+    } else {
+        p = x1 + t_lookahead*(x2-x1);
+        // ROS_INFO("L = %f; norm(x0-p) = %f", _lookahead, (x0-p).norm());
+    }
+
+    out.next.x = p(0);
+    out.next.y = p(1);
+    out.next.z = p(2);
+    out.t_lookahead = t_lookahead;
+    return out;
+}
 
 void BackendDjiRos::goToWaypoint(const Waypoint& _world) {
 
@@ -1026,7 +1061,8 @@ void BackendDjiRos::goToWaypoint_controller(const Waypoint& _world) {
          
 }
 
-void BackendDjiRos::goToListofWaypoint(const WaypointList& _wp){
+void    BackendDjiRos::goToListofWaypoint(const WaypointList& _wp){
+
 
     // show rviz last wp in list
     int size = _wp.poses.size();
@@ -1066,54 +1102,6 @@ void BackendDjiRos::goToListofWaypoint(const WaypointList& _wp){
         // setPosePlanner(reference_pose_);
         // waypoint_reached_pub_.publish(this->reference_reached_);
     }
-
-}
-
-bool BackendDjiRos::referencePoseReached() {
-
-
-    double dx = reference_pose_.pose.position.x - cur_pose_.pose.position.x;
-    double dy = reference_pose_.pose.position.y - cur_pose_.pose.position.y;
-    double dz = reference_pose_.pose.position.z - cur_pose_.pose.position.z;
-    double positionD = dx*dx + dy*dy + dz*dz; // Equals distance^2
-
-    double quatInnerProduct = reference_pose_.pose.orientation.x*cur_pose_.pose.orientation.x + \
-    reference_pose_.pose.orientation.y*cur_pose_.pose.orientation.y + \
-    reference_pose_.pose.orientation.z*cur_pose_.pose.orientation.z + \
-    reference_pose_.pose.orientation.w*cur_pose_.pose.orientation.w;
-    double orientationD = 1 - quatInnerProduct*quatInnerProduct;  // Equals (1-cos(rotation))/2
-
-    // ROS_INFO("ref_position = [%f, %f, %f] cur_position = [%f, %f, %f]", \
-    // reference_pose_.pose.position.x, reference_pose_.pose.position.y, reference_pose_.pose.position.z, \
-    // cur_pose_.pose.position.x, cur_pose_.pose.position.y, cur_pose_.pose.position.z);
-    // ROS_INFO("pD = %f,\t oD = %f", positionD, orientationD);
-
-    // if ((positionD > position_th_) || (orientationD > orientation_th_) ) {
-    //     return false;
-    // } else {
-    //     // cur_pose_ = ref_pose_;
-    //     return true;
-    // }
-
-    
-    if ((positionD > position_th_)) {
-        this->reference_reached_.data = false;        
-        return false;
-    } else {
-        // cur_pose_ = ref_pose_;
-        this->reference_reached_.data = true;
-        waypoint_reached_pub_.publish(this->reference_reached_);
-        ROS_INFO("[UAL] WP reached");
-        return true;
-    }
-
-}
-
-std_msgs::Bool BackendDjiRos::referenceReached(){
-    return reference_reached_;
-}
-
-WaypointList BackendDjiRos::waypoint_list() const {
 
 }
 
@@ -1187,40 +1175,9 @@ void	BackendDjiRos::goToWaypointGeo(const WaypointGeo& _wp){
     // }
 }
 
-Pose BackendDjiRos::referencePose() {
-    return reference_pose_;
-}
-
-Velocity BackendDjiRos::velocity() const {
-    Velocity out;
-
-    out.twist.linear = current_linear_velocity_.vector;
-    out.twist.angular = current_angular_velocity_.vector;
-
-    return out;
-}
-
-Odometry BackendDjiRos::odometry() const {
-    Odometry out;
-
-    out = current_odometry_;
-
-    return out;
-}
-
-Transform BackendDjiRos::transform() const {
-    Transform out;
-    out.header.stamp = ros::Time::now();
-    out.header.frame_id = "map";
-    out.child_frame_id = "uav_" + std::to_string(robot_id_);
-
-    out.transform.translation.x = current_position_.point.x;
-    out.transform.translation.y = current_position_.point.y;
-    out.transform.translation.z = current_position_.point.z;
-    out.transform.rotation = current_attitude_.quaternion;        
-
-    return out;
-}
+/*void BackendDjiRos::trackPath(const WaypointList &_path) {
+    // TODO: basic imlementation, ideally different from a stack of gotos
+}*/
 
 Pose BackendDjiRos::pose() {
         Pose out;
@@ -1264,5 +1221,127 @@ Pose BackendDjiRos::pose() {
 
         return out;
 }
+
+std_msgs::Bool BackendDjiRos::referenceReached(){
+    return reference_reached_;
+}
+
+WaypointList BackendDjiRos::waypoint_list() const {
+
+}
+
+Pose BackendDjiRos::referencePose() {
+    return reference_pose_;
+}
+
+Velocity BackendDjiRos::velocity() const {
+    Velocity out;
+
+    out.twist.linear = current_linear_velocity_.vector;
+    out.twist.angular = current_angular_velocity_.vector;
+
+    return out;
+}
+
+Odometry BackendDjiRos::odometry() const {
+    Odometry out;
+
+    out = current_odometry_;
+
+    return out;
+}
+
+Transform BackendDjiRos::transform() const {
+    Transform out;
+    out.header.stamp = ros::Time::now();
+    out.header.frame_id = "map";
+    out.child_frame_id = "uav_" + std::to_string(robot_id_);
+
+    out.transform.translation.x = current_position_.point.x;
+    out.transform.translation.y = current_position_.point.y;
+    out.transform.translation.z = current_position_.point.z;
+    out.transform.rotation = current_attitude_.quaternion;        
+
+    return out;
+}
+
+bool BackendDjiRos::referencePoseReached() {
+
+
+    double dx = reference_pose_.pose.position.x - cur_pose_.pose.position.x;
+    double dy = reference_pose_.pose.position.y - cur_pose_.pose.position.y;
+    double dz = reference_pose_.pose.position.z - cur_pose_.pose.position.z;
+    double positionD = dx*dx + dy*dy + dz*dz; // Equals distance^2
+
+    double quatInnerProduct = reference_pose_.pose.orientation.x*cur_pose_.pose.orientation.x + \
+    reference_pose_.pose.orientation.y*cur_pose_.pose.orientation.y + \
+    reference_pose_.pose.orientation.z*cur_pose_.pose.orientation.z + \
+    reference_pose_.pose.orientation.w*cur_pose_.pose.orientation.w;
+    double orientationD = 1 - quatInnerProduct*quatInnerProduct;  // Equals (1-cos(rotation))/2
+
+    // ROS_INFO("ref_position = [%f, %f, %f] cur_position = [%f, %f, %f]", \
+    // reference_pose_.pose.position.x, reference_pose_.pose.position.y, reference_pose_.pose.position.z, \
+    // cur_pose_.pose.position.x, cur_pose_.pose.position.y, cur_pose_.pose.position.z);
+    // ROS_INFO("pD = %f,\t oD = %f", positionD, orientationD);
+
+    // if ((positionD > position_th_) || (orientationD > orientation_th_) ) {
+    //     return false;
+    // } else {
+    //     // cur_pose_ = ref_pose_;
+    //     return true;
+    // }
+
+    
+    if ((positionD > position_th_)) {
+        this->reference_reached_.data = false;        
+        return false;
+    } else {
+        // cur_pose_ = ref_pose_;
+        this->reference_reached_.data = true;
+        waypoint_reached_pub_.publish(this->reference_reached_);
+        ROS_INFO("[UAL] WP reached");
+        return true;
+    }
+
+}
+
+// void BackendDjiRos::initHomeFrame() {
+
+//     uav_home_frame_id_ = "uav_" + std::to_string(robot_id_) + "_home";
+//     local_start_pos_ << 0.0, 0.0, 0.0;
+
+//     // Get frame from rosparam
+//     std::string parent_frame;
+//     std::vector<double> home_pose(3, 0.0);
+
+//     ros::param::get("~home_pose",home_pose);
+//     ros::param::param<std::string>("~home_pose_parent_frame", parent_frame, "map");
+
+//     geometry_msgs::TransformStamped static_transformStamped;
+
+//     static_transformStamped.header.stamp = ros::Time::now();
+//     static_transformStamped.header.frame_id = parent_frame;
+//     static_transformStamped.child_frame_id = uav_home_frame_id_;
+//     static_transformStamped.transform.translation.x = home_pose[0];
+//     static_transformStamped.transform.translation.y = home_pose[1];
+//     static_transformStamped.transform.translation.z = home_pose[2];
+
+//     if(parent_frame == "map" || parent_frame == "") {
+//         static_transformStamped.transform.rotation.x = 0;
+//         static_transformStamped.transform.rotation.y = 0;
+//         static_transformStamped.transform.rotation.z = 0;
+//         static_transformStamped.transform.rotation.w = 1;
+//     }
+//     else {
+//         tf2_ros::Buffer tfBuffer;
+//         tf2_ros::TransformListener tfListener(tfBuffer);
+//         geometry_msgs::TransformStamped transform_to_map;
+//         transform_to_map = tfBuffer.lookupTransform(parent_frame, "map", ros::Time(0), ros::Duration(2.0));
+//         static_transformStamped.transform.rotation = transform_to_map.transform.rotation;
+//     }
+
+//     static_tf_broadcaster_ = new tf2_ros::StaticTransformBroadcaster();
+//     static_tf_broadcaster_->sendTransform(static_transformStamped);
+// }
 
 }}	// namespace grvc::ual

@@ -276,6 +276,8 @@ private:
     float a_land, b_land;
     float z0_land;
 
+    bool simulation;
+
     DjiHistoryBuffer position_error_;
     DjiHistoryBuffer orientation_error_;
 
@@ -335,8 +337,6 @@ private:
 
     bool activated_ = false;
     bool home_set_ = false;
-
-    bool simulation;
 };
 
 }}	// namespace grvc::ual
