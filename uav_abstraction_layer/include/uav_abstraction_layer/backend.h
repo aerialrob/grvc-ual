@@ -31,6 +31,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <trajectory_msgs/MultiDOFJointTrajectory.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <nav_msgs/Odometry.h>
 #include <uav_abstraction_layer/State.h>
@@ -107,6 +108,10 @@ public:
     /// Go to the specified waypoint using local planner
     /// \param _wp goal waypoint
     virtual void	goToWaypoint_controller(const Waypoint& _wp) = 0;
+
+    /// Send trajectory
+    /// \param trajectory goal trajectory
+    virtual void goToTrajectory_controller(const trajectory_msgs::MultiDOFJointTrajectory &trajectory) = 0;
 
     /// Go to a list of waypoint using local planner
     /// \param _wp goal List Waypoint

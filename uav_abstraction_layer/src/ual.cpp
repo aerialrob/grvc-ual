@@ -84,6 +84,7 @@ UAL::UAL(Backend* _backend) {
             std::string land_point_srv = ual_ns + "/land_point";
             std::string go_to_waypoint_srv = ual_ns + "/go_to_waypoint";
             std::string go_to_waypoint_controller_srv = ual_ns + "/go_to_waypoint_controller";
+            std::string go_to_trajectory_controller_srv = ual_ns + "/go_to_trajectory_controller";
             std::string go_to_waypoint_list_srv = ual_ns + "/go_to_waypoint_list";
             std::string go_to_waypoint_geo_srv = ual_ns + "/go_to_waypoint_geo";
             std::string planner_srv = ual_ns + "/global_planner";
@@ -126,6 +127,13 @@ UAL::UAL(Backend* _backend) {
                 go_to_waypoint_srv,
                 [this](GoToWaypoint::Request &req, GoToWaypoint::Response &res) {
                 return this->goToWaypoint(req.waypoint, req.blocking);
+            });
+
+            ros::ServiceServer go_to_trajectory_controller_service =
+                nh.advertiseService<GoToTrajectoryController::Request, GoToTrajectoryController::Response>(
+                go_to_trajectory_controller_srv,
+                [this](GoToTrajectoryController::Request &req, GoToTrajectoryController::Response &res) {
+                return this->goToTrajectory_controller(req.trajectory, req.blocking);
             });
             ros::ServiceServer go_to_waypoint_controller_service =
                 nh.advertiseService<GoToWaypoint::Request, GoToWaypoint::Response>(
@@ -352,6 +360,37 @@ bool UAL::goToWaypoint_controller(const Waypoint& _wp, bool _blocking) {
     }
     return true;
 }
+
+bool UAL::goToTrajectory_controller(const trajectory_msgs::MultiDOFJointTrajectory& trajectory, bool _blocking){
+    // Check required state
+    if (backend_->state() != uav_abstraction_layer::State::FLYING_AUTO) {
+        if (backend_->state() != uav_abstraction_layer::State::LANDING) {    
+        ROS_ERROR("Unable to send trajectory to the controller: not FLYING_AUTO!");
+        return false;
+        }
+    }
+    // Override any previous FLYING function
+    if (!backend_->isIdle()) { backend_->abort(); }
+
+    if (_blocking) {
+        if (!backend_->threadSafeCall(&Backend::goToTrajectory_controller, trajectory)) {
+            ROS_INFO("Blocking goToTrajectory_controller rejected!");
+            return false;
+        }
+    } else {
+        if (running_thread_.joinable()) running_thread_.join();
+            // Call function on a thread:
+        running_thread_ = std::thread([this, trajectory]() {
+            if (!this->backend_->threadSafeCall(&Backend::goToTrajectory_controller, trajectory))
+            {
+                ROS_INFO("Non-blocking goToTrajectory_controller rejected!");
+            }
+        });
+    }
+
+        return true;
+}
+
 
 bool UAL::goToListofWaypoint(const WaypointList& _wp, bool _blocking) {
     // Check required state

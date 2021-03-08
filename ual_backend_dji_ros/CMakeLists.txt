@@ -16,8 +16,6 @@ find_package(catkin REQUIRED COMPONENTS
   mav_msgs
   mav_planning_msgs
   visualization_msgs
-  snapstack_msgs
-  faster_msgs
 )
 
 ## System dependencies are found with CMake's conventions

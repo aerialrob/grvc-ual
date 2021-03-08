@@ -35,6 +35,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/QuaternionStamped.h>
+#include <trajectory_msgs/MultiDOFJointTrajectory.h>
 #include <std_msgs/UInt8.h>
 #include <std_msgs/Float64.h>
 #include <std_msgs/Bool.h>
@@ -58,14 +59,10 @@
 #include <visualization_msgs/MarkerArray.h>
 
 
-#include <faster_msgs/Mode.h>
-#include <snapstack_msgs/QuadGoal.h>
-#include <snapstack_msgs/State.h>
-
 // std_msgs::UInt8 S_FLYING = 2;
 typedef double Quaterniond [4];
 
-typedef faster_msgs::Mode               FasterMode; 
+
 
 namespace grvc { namespace ual {
 
@@ -185,6 +182,10 @@ public:
     /// \param _wp goal waypoint
     void    goToWaypoint_controller(const Waypoint& _wp) override;
 
+    /// Send trajectory to controller
+    /// \param _wp goal waypoint
+    void    goToTrajectory_controller(const trajectory_msgs::MultiDOFJointTrajectory& trajectory) override;
+
     /// Go to the specified waypoint in geographic coordinates, following a straight line
     /// \param _wp goal waypoint in geographic coordinates
     void	goToWaypointGeo(const WaypointGeo& _wp);
@@ -222,6 +223,7 @@ private:
     void setArmed(bool _value);
     // void initHomeFrame();
     bool referencePoseReached();
+    bool referencePoseReached_controller();
     // void setFlightMode(const std::string& _flight_mode);
     State guessState();
     
@@ -272,8 +274,6 @@ private:
     bool laser_altimeter;
     bool self_arming;
 
-    FasterMode faster_mode_;
-
     float mpc_xy_vel_max;
     float mpc_z_vel_max_up;
     float mpc_z_vel_max_dn;
@@ -281,6 +281,8 @@ private:
 
     float a_land, b_land;
     float z0_land;
+
+    bool simulation;
 
     DjiHistoryBuffer position_error_;
     DjiHistoryBuffer orientation_error_;
@@ -299,11 +301,9 @@ private:
     ros::Publisher command_pose_pub_;
     ros::Publisher _pubRviz; 
     ros::Publisher waypoint_pub_;
+    ros::Publisher trajectory_pub_;
     ros::Publisher waypoint_list_pub_;
     ros::Publisher waypoint_reached_pub_;
-    ros::Publisher my_publisher_goal_;
-    ros::Publisher my_publisher_faster_mode_;
-
     
     //test publishers
     ros::Publisher lookahead_pub;

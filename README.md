@@ -21,14 +21,13 @@ You can find detailed instructions for installation and how to use the UAL in th
 ### [PX4](https://github.com/PX4/Firmware)
 
  * Via [ual_backend_mavros](https://github.com/grvcTeam/grvc-ual/wiki/Backend-MAVROS) and [ual_backend_mavlink](https://github.com/grvcTeam/grvc-ual/wiki/Backend-MAVLink)
- * In simulation (SITL): version [v1.10.*](https://github.com/PX4/Firmware/tree/v1.10.1)
- * Flying: versions from [v1.7.3](https://github.com/PX4/Firmware/tree/v1.7.3) to [v1.10.1](https://github.com/PX4/Firmware/tree/v1.10.1)
- * [Instructions to setup the SITL](https://github.com/grvcTeam/grvc-ual/wiki/Setup-instructions:-PX4-SITL)
+ * In simulation (SITL): version [v1.7.3](https://github.com/PX4/Firmware/tree/v1.7.3)
+ * Flying: versions from [v1.7.3](https://github.com/PX4/Firmware/tree/v1.7.3) to [v1.9.2](https://github.com/PX4/Firmware/tree/v1.9.2)
 
 ### [Ardupilot](http://ardupilot.org/) (beta)
 
  * Via [ual_backend_mavros](https://github.com/grvcTeam/grvc-ual/wiki/Backend-MAVROS)
- * Last tested version [v4.0.0](https://firmware.ardupilot.org/Copter/stable-4.0.0)
+ * Last tested version [v3.6.9](http://firmware.ardupilot.org/Copter/stable-3.6.9)
 
 ### DJI A3/N3
 
@@ -48,15 +47,10 @@ You can find detailed instructions for installation and how to use the UAL in th
 If you find UAL useful in your research, please consider citing:
 
 ```
-@article{real_ijars20, 
-    author = {Fran Real and Arturo Torres-Gonz\'{a}lez and Pablo Ram\'{o}n Soria and Jes\'{u}s Capit\'{a}n and Anibal Ollero}, 
-    title = {Unmanned aerial vehicle abstraction layer: An abstraction layer to operate unmanned aerial vehicles}, 
-    journal = {International Journal of Advanced Robotic Systems}, 
-    year = {2020}, 
-    volume = {17}, 
-    number = {4}, 
-    pages = {1-13}, 
-    doi = {10.1177/1729881420925011},
-    url = {https://doi.org/10.1177/1729881420925011}
+@inproceedings{real2018ual,
+    Author = {Fran Real, Arturo Torres-González, Pablo Ramón Soria, Jesús Capitán and Aníbal Ollero},
+    Title = {UAL: an abstraction layer for unmanned vehicles},
+    Booktitle= {2nd International Symposium on Aerial Robotics (ISAR)},
+    Year = {2018}
 }
 ```

@@ -24,10 +24,12 @@
 #include <uav_abstraction_layer/backend.h>
 #include <uav_abstraction_layer/GoToWaypoint.h>
 #include <uav_abstraction_layer/GoToWaypointList.h>
+#include <uav_abstraction_layer/GoToTrajectoryController.h>
 #include <uav_abstraction_layer/TakeOff.h>
 #include <uav_abstraction_layer/Land.h>
 #include <uav_abstraction_layer/LandPoint.h>
 #include <uav_abstraction_layer/State.h>
+#include <trajectory_msgs/MultiDOFJointTrajectory.h>
 #include <thread>
 
 namespace grvc { namespace ual {
@@ -90,6 +92,11 @@ public:
     /// \param _wp goal waypoint
     /// \param _blocking indicates if function call is blocking (default = true)
     bool	goToWaypoint_controller(const Waypoint& _wp, bool _blocking = true);
+
+    /// Go to the specified waypoint, following a straight line
+    /// \param trajectory goal trajectory
+    /// \param _blocking indicates if function call is blocking (default = true)
+    bool	goToTrajectory_controller(const trajectory_msgs::MultiDOFJointTrajectory& trajectory, bool _blocking = false);
 
     /// Go to a list of waypoint using local planner
     /// \param _wp goal List Waypoint

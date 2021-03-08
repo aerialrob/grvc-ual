@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf2_ros
   sensor_msgs
+  trajectory_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -62,6 +63,7 @@ add_service_files(
   Float32Param.srv
   GoToWaypoint.srv
   GoToWaypointList.srv
+  GoToTrajectoryController.srv
   GoToWaypointGeo.srv
   TakeOff.srv
   Land.srv
@@ -80,7 +82,7 @@ add_service_files(
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  geometry_msgs std_msgs sensor_msgs
+  geometry_msgs std_msgs sensor_msgs trajectory_msgs
 )
 
 ################################################
